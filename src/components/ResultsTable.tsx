@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react"
+import { Fragment, useMemo, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -25,11 +26,54 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { CheckStatus, VehicleCheckResult } from "@/types"
+import {
+  FIELD_LABELS,
+  FINANCING_CODES,
+  LEASING_ALL_CODES,
+} from "@/constants/fields"
+import { buildHeaderValueMap, getFieldValue } from "@/lib/fieldResolve"
+import type { CheckStatus, ProductType, VehicleCheckResult } from "@/types"
+import { readFinancingValues, readKtLeasingConditions } from "@/validation/financing"
 import { cn } from "@/lib/utils"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
 interface ResultsTableProps {
   results: VehicleCheckResult[]
+  /** Original CSV rows (same index as `VehicleCheckResult.rowIndex`). */
+  sourceRows?: Record<string, unknown>[]
+}
+
+function formatCellValue(v: unknown): string {
+  if (v === null || v === undefined) return "—"
+  if (typeof v === "object") return JSON.stringify(v)
+  const s = String(v)
+  return s.trim() === "" ? "—" : s
+}
+
+/** Resolved values for the API field codes that apply to this product row. */
+function productFieldRows(
+  row: Record<string, unknown> | undefined,
+  product: ProductType,
+): { code: string; label: string; value: string }[] {
+  if (!row) return []
+  const lookup = buildHeaderValueMap(row)
+  if (product === "leasing") {
+    return LEASING_ALL_CODES.map((code) => ({
+      code,
+      label: FIELD_LABELS[code] ?? code,
+      value: formatCellValue(
+        code === "KT"
+          ? readKtLeasingConditions(lookup)
+          : getFieldValue(lookup, code),
+      ),
+    }))
+  }
+  const financing = readFinancingValues(lookup)
+  return FINANCING_CODES.map((code) => ({
+    code,
+    label: FIELD_LABELS[code] ?? code,
+    value: formatCellValue(financing[code]),
+  }))
 }
 
 type StatusFilterValue = "all" | CheckStatus
@@ -80,9 +124,24 @@ function StatusBadge({ status }: { status: CheckStatus }) {
   )
 }
 
-export function ResultsTable({ results }: ResultsTableProps) {
+export function ResultsTable({
+  results,
+  sourceRows = [],
+}: ResultsTableProps) {
   const [vehicleIdQuery, setVehicleIdQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all")
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
+
+  const hasSourceData = sourceRows.length > 0
+
+  const toggleExpanded = (key: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const normalizedQuery = vehicleIdQuery.trim().toLowerCase()
   const filteredResults = useMemo(() => {
@@ -172,6 +231,9 @@ export function ResultsTable({ results }: ResultsTableProps) {
           <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10 p-2">
+                <span className="sr-only">Expand row</span>
+              </TableHead>
               <TableHead className="min-w-[100px]">Vehicle ID</TableHead>
               <TableHead className="min-w-[80px]">Row</TableHead>
               <TableHead>Product</TableHead>
@@ -182,27 +244,98 @@ export function ResultsTable({ results }: ResultsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredResults.map((r, i) => (
-              <TableRow key={`${r.rowIndex}-${r.product}-${i}`}>
-                <TableCell className="font-medium">{r.vehicleId}</TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">
-                  {r.rowIndex}
-                </TableCell>
-                <TableCell className="capitalize">{r.product}</TableCell>
-                <TableCell>
-                  <StatusBadge status={r.status} />
-                </TableCell>
-                <TableCell className="max-w-[240px] text-sm break-words">
-                  {r.presentFields.length ? r.presentFields.join(", ") : "—"}
-                </TableCell>
-                <TableCell className="max-w-[240px] text-sm break-words">
-                  {r.missingFields.length ? r.missingFields.join(", ") : "—"}
-                </TableCell>
-                <TableCell className="max-w-[320px] text-sm">
-                  {r.notes.length ? r.notes.join(" ") : "—"}
-                </TableCell>
-              </TableRow>
-            ))}
+            {filteredResults.map((r, i) => {
+              const rowKey = `${r.rowIndex}-${r.product}-${i}`
+              const isExpanded = expandedKeys.has(rowKey)
+              const rawRow = sourceRows[r.rowIndex]
+              const fieldRows = productFieldRows(rawRow, r.product)
+
+              return (
+                <Fragment key={rowKey}>
+                  <TableRow>
+                    <TableCell className="w-10 p-1 align-middle">
+                      {hasSourceData ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="text-muted-foreground"
+                          aria-expanded={isExpanded}
+                          aria-label={
+                            isExpanded ? "Hide field values" : "Show field values"
+                          }
+                          onClick={() => toggleExpanded(rowKey)}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="size-4" aria-hidden />
+                          ) : (
+                            <ChevronRight className="size-4" aria-hidden />
+                          )}
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground block w-6 text-center text-xs">
+                          —
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{r.vehicleId}</TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {r.rowIndex}
+                    </TableCell>
+                    <TableCell className="capitalize">{r.product}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={r.status} />
+                    </TableCell>
+                    <TableCell className="max-w-[240px] text-sm break-words">
+                      {r.presentFields.length ? r.presentFields.join(", ") : "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[240px] text-sm break-words">
+                      {r.missingFields.length ? r.missingFields.join(", ") : "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[320px] text-sm">
+                      {r.notes.length ? r.notes.join(" ") : "—"}
+                    </TableCell>
+                  </TableRow>
+                  {hasSourceData && isExpanded ? (
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableCell colSpan={8} className="p-0">
+                        <div className="border-border border-t px-4 py-3">
+                          <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                            Fields for {r.product} (API codes)
+                          </p>
+                          {fieldRows.length === 0 ? (
+                            <p className="text-muted-foreground text-sm">
+                              No row data loaded for this result.
+                            </p>
+                          ) : (
+                            <dl className="grid max-h-[min(60vh,28rem)] grid-cols-1 gap-x-6 gap-y-3 overflow-y-auto text-sm sm:grid-cols-2 lg:grid-cols-3">
+                              {fieldRows.map(({ code, label, value }) => (
+                                <div
+                                  key={code}
+                                  className="border-border/50 min-w-0 border-b pb-3 last:border-b-0"
+                                >
+                                  <dt className="min-w-0">
+                                    <span className="font-mono text-xs font-semibold">
+                                      {code}
+                                    </span>
+                                    <span className="text-muted-foreground block truncate text-xs leading-snug">
+                                      {label}
+                                    </span>
+                                  </dt>
+                                  <dd className="mt-1 break-words font-medium">
+                                    {value}
+                                  </dd>
+                                </div>
+                              ))}
+                            </dl>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
+              )
+            })}
           </TableBody>
         </Table>
         )}

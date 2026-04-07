@@ -75,12 +75,18 @@ export const FIELD_ALIASES: Record<string, readonly string[]> = {
   ET: ["et", "149"],
   EU: ["eu", "150"],
   EV: ["ev", "151"],
-  /** Prepayment; legacy Mobile.de “financing feature” column was EY (154). */
-  EW: ["ew", "ey", "154"],
+  /**
+   * Prepayment (Anzahlung): column 152 in standard extension layout; 154 is legacy EY.
+   * Positional rows always have keys "152"/"154" — resolve first non-empty (see readFinancingValues).
+   */
+  EW: ["152", "154", "ew", "ey"],
   EX: ["ex", "153"],
-  FE: ["fe"],
-  FI: ["fi"],
-  FJ: ["fj"],
+  /** Gross loan amount; numeric column in dealer exports. */
+  FE: ["160", "fe"],
+  /** Disclaimer text (loaning/balloon): column 164 in dealer export. */
+  FI: ["164", "fi"],
+  /** APR lower bound % (numeric). */
+  FJ: ["165", "fj"],
   KG: ["kg", "292"],
   KH: ["kh", "293"],
   KI: ["ki", "294"],
@@ -91,10 +97,12 @@ export const FIELD_ALIASES: Record<string, readonly string[]> = {
   KN: ["kn", "299"],
   KO: ["ko", "300"],
   KP: ["kp", "301"],
-  KQ: ["kq", "302"],
+  /** Provider bank (column id varies by export; not 302 — see KT for disclaimer text). */
+  KQ: ["kq"],
   KR: ["kr", "303"],
   KS: ["ks", "304"],
-  KT: ["kt", "305"],
+  /** Leasing conditions / disclaimer: column 302 in dealer export; 305 legacy. */
+  KT: ["302", "305", "kt"],
   KU: ["ku", "306"],
   KV: ["kv", "307"],
   LM: ["lm", "324"],

@@ -4,7 +4,10 @@ import {
   LEASING_STRICT_EXTRA_CODES,
 } from "@/constants/fields"
 import type { ProductType, ValidationMode, VehicleCheckResult } from "@/types"
-import { hasAnyLeasingBlock } from "@/validation/financing"
+import {
+  hasAnyLeasingBlock,
+  readKtLeasingConditions,
+} from "@/validation/financing"
 import { isEmpty } from "@/lib/normalize"
 import { buildHeaderValueMap, getFieldValue } from "@/lib/fieldResolve"
 
@@ -30,7 +33,8 @@ export function validateLeasing(
   const notes: string[] = []
 
   for (const c of LEASING_ALL_CODES) {
-    const v = getFieldValue(lookup, c)
+    const v =
+      c === "KT" ? readKtLeasingConditions(lookup) : getFieldValue(lookup, c)
     if (!isEmpty(v)) present.push(c)
   }
 
@@ -49,7 +53,9 @@ export function validateLeasing(
   }
 
   for (const c of req) {
-    if (isEmpty(getFieldValue(lookup, c))) missing.push(c)
+    const v =
+      c === "KT" ? readKtLeasingConditions(lookup) : getFieldValue(lookup, c)
+    if (isEmpty(v)) missing.push(c)
   }
 
   if (missing.length === 0) {

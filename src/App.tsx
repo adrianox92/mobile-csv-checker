@@ -252,7 +252,7 @@ export default function App() {
         </Card>
 
         {summary ? <Summary summary={summary} /> : null}
-        <ResultsTable results={results} />
+        <ResultsTable results={results} sourceRows={rows} />
       </div>
     </div>
   )

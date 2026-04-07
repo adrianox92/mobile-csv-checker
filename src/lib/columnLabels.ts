@@ -31,8 +31,18 @@ export function columnIndexToMobileLabel(index: number): string {
   return String(index)
 }
 
-/** Short reference for financing base + balloon (Mobile column ID = API code). */
+/** Short reference for financing fields (Mobile column ID → API code). */
 export function financingColumnIdReference(): string {
-  const parts = ["149 → ET", "150 → EU", "151 → EV", "154 → EW", "153 → EX"]
+  const parts = [
+    "149 → ET",
+    "150 → EU",
+    "151 → EV",
+    "152 → EW",
+    "153 → EX",
+    "160 → FE",
+    "164 → FI (disclaimer)",
+    "165 → FJ",
+    "302 → KT (leasing disclaimer)",
+  ]
   return parts.join(", ")
 }
